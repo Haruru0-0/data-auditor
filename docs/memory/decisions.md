@@ -4,7 +4,7 @@ Made by Ahmad:
 - Project 4 is a data-quality auditor, built after forecast-tracker.
 - First version targets normal-sized data, in a new folder and a new repo.
 - Auditor first; cleaning is a possible later addition.
-- Mirror the GitHub repo to GitLab the way jalter does (`jalter/scripts/mirror-to-gitlab.sh`).
+- Mirror the GitHub repo to GitLab the way jalter does (`dev-tools/mirror-to-gitlab.sh`).
 
 Made by Claude (marked as calls in the design doc, open to change):
 - Name `data-auditor`, package `dataauditor`.
