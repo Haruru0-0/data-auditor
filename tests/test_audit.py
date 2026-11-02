@@ -98,3 +98,43 @@ def test_unreadable_baseline_gives_warning(tmp_path):
     schema = [f for f in audit_path(new, baseline=old)[0].findings if f.check == "schema"]
     assert len(schema) == 1 and schema[0].severity == "warning"
     assert "unreadable" in schema[0].message.lower()
+
+
+def test_check_failure_becomes_read_error_and_others_still_audited(tmp_path, monkeypatch):
+    import duckdb
+
+    import dataauditor.audit as audit_mod
+
+    (tmp_path / "a.csv").write_text(CLEAN, encoding="utf-8")
+    (tmp_path / "b.csv").write_text(CLEAN, encoding="utf-8")
+    (tmp_path / "c.csv").write_text(CLEAN, encoding="utf-8")
+    real = audit_mod.check_missing
+
+    def flaky(con, table):
+        if table.path.name == "b.csv":
+            raise duckdb.Error("damaged page")
+        return real(con, table)
+
+    monkeypatch.setattr(audit_mod, "check_missing", flaky)
+    a, b, c = audit_path(tmp_path)
+    assert b.rows == 0 and b.columns == {}
+    assert len(b.findings) == 1
+    f = b.findings[0]
+    assert (f.check, f.severity, f.column, f.count) == ("read", "error", None, 1)
+    assert "damaged page" in f.message
+    for ok in (a, c):
+        assert ok.rows == 20
+        assert [x for x in ok.findings if x.severity in ("warning", "error")] == []
+
+
+def test_oserror_in_check_is_read_error(tmp_path, monkeypatch):
+    import dataauditor.audit as audit_mod
+
+    (tmp_path / "a.csv").write_text(CLEAN, encoding="utf-8")
+
+    def boom(con, table):
+        raise OSError("file vanished")
+
+    monkeypatch.setattr(audit_mod, "check_outliers", boom)
+    (r,) = audit_path(tmp_path)
+    assert [(f.check, f.severity) for f in r.findings] == [("read", "error")]

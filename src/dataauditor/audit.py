@@ -45,12 +45,15 @@ def _audit_file(con, path: Path, baseline: Path | None, use_baseline: bool) -> F
     except UnreadableFile as exc:
         return FileReport(str(path), 0, {}, [Finding("read", "error", None, str(exc), 1)])
     findings: list[Finding] = []
-    findings += check_missing(con, table)
-    findings += check_duplicates(con, table)
-    findings += check_types(con, table)
-    findings += check_outliers(con, table)
-    if use_baseline:
-        findings += _schema_findings(con, table, baseline)
+    try:
+        findings += check_missing(con, table)
+        findings += check_duplicates(con, table)
+        findings += check_types(con, table)
+        findings += check_outliers(con, table)
+        if use_baseline:
+            findings += _schema_findings(con, table, baseline)
+    except (duckdb.Error, OSError) as exc:
+        return FileReport(str(path), 0, {}, [Finding("read", "error", None, str(exc), 1)])
     return FileReport(str(path), table.rows, table.columns, findings)
 
 
