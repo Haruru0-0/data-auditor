@@ -94,3 +94,20 @@ def test_wrong_order_fails(tmp_path):
     readme.write_bytes(f"a\n{END}\nb\n{START}\nc".encode())
     with pytest.raises(ValueError, match="order"):
         render.render_numbers(results, readme)
+
+
+def test_recall_is_floored_not_rounded_up():
+    block = render._block(
+        {"files_audited": 1, "faults_injected": 200, "faults_found": 199, "false_positives": 0}, "\n"
+    )
+    assert "99.5%" in block and "100%" not in block
+
+
+def test_committed_readme_numbers_are_current(tmp_path):
+    committed = Path(__file__).resolve().parent.parent / "README.md"
+    copy = tmp_path / "README.md"
+    copy.write_bytes(committed.read_bytes())
+    results = tmp_path / "results.json"
+    results.write_text(json.dumps(render.run_demo()), encoding="utf-8")
+    render.render_numbers(results, copy)
+    assert copy.read_bytes() == committed.read_bytes()

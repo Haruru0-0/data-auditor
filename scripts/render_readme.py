@@ -76,7 +76,11 @@ def run_demo(seed: int = 7) -> dict[str, int]:
 def _block(results: dict, nl: str) -> str:
     injected = results["faults_injected"]
     found = results["faults_found"]
-    recall = f"{found / injected * 100:.0f}%" if injected else "n/a"
+    # Floor to one decimal so 199/200 never reads as 100%; whole numbers print without ".0".
+    recall = "n/a"
+    if injected:
+        tenths = found * 1000 // injected
+        recall = f"{tenths // 10}%" if tenths % 10 == 0 else f"{tenths / 10:.1f}%"
     lines = [
         "| Measure | Value |",
         "| --- | --- |",

@@ -18,7 +18,8 @@ Python 3.12.
 
 ```
 python -m venv .venv
-.venv/Scripts/activate        # on macOS/Linux: source .venv/bin/activate
+.venv\Scripts\Activate.ps1     # PowerShell on Windows
+source .venv/bin/activate     # macOS/Linux
 pip install -e ".[dev]"
 ```
 
@@ -28,7 +29,7 @@ pip install -e ".[dev]"
 dataauditor audit PATH [--baseline PATH] [--out DIR]
 ```
 
-`PATH` is a CSV or Parquet file, or a folder of them. `--baseline` is the earlier version of the file (or a folder with files of the same names) for the schema drift check. `--out` is the folder for saved reports.
+`PATH` is a CSV or Parquet file, or a folder of them. Folder scans are non-recursive: only the files directly inside the folder are audited. `--baseline` is the earlier version of the file (or a folder with files of the same names) for the schema drift check. `--out` is the folder for saved reports.
 
 Exit codes: 0 when there is no error-level finding, 1 when there is at least one, 2 when the command could not run (for example a path that does not exist).
 
@@ -75,6 +76,7 @@ cd web && npm test
 
 - Built for ordinary-sized files that fit on a laptop; no streaming or sampling.
 - The heuristics are conservative, so small problems can go unreported.
-- Key detection is name-based: a column is key-like when its name ends in `id` or `key`.
+- Key detection is name-based: a column is key-like when `id` or `key` is the last word of its name: the whole name, after a separator (`_`, `-`, space, `.`), or after a camelCase boundary (`user_id`, `order-key`, `userId`, `APIKey`). Names such as `paid`, `valid` or `monkey` are not key-like.
+- Column types are sniffed by DuckDB from a sample of each CSV; a file whose later values break the sniffed type can fail to load and is reported as a `read` error instead of a `types` finding.
 - Schema drift needs a baseline to compare against.
 - It reports problems only; cleaning or fixing data is not built yet.

@@ -9,10 +9,15 @@ def exit_code(reports: list[FileReport]) -> int:
     return int(any(f.severity == "error" for r in reports for f in r.findings))
 
 
-def _utc(moment: datetime) -> datetime:
+def utc(moment: datetime) -> datetime:
     if moment.tzinfo is None:
         return moment.replace(tzinfo=timezone.utc)
     return moment.astimezone(timezone.utc)
+
+
+def stamp(moment: datetime) -> str:
+    """File-name stamp for a run. A naive time is taken as UTC everywhere."""
+    return utc(moment).strftime("%Y%m%dT%H%M%SZ")
 
 
 def to_json(reports: list[FileReport], generated_at: datetime) -> str:
@@ -38,7 +43,7 @@ def to_json(reports: list[FileReport], generated_at: datetime) -> str:
             ],
         })
     doc = {
-        "generated_at": _utc(generated_at).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": utc(generated_at).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "files": files,
         "totals": totals,
     }
@@ -48,7 +53,7 @@ def to_json(reports: list[FileReport], generated_at: datetime) -> str:
 def write_json(reports: list[FileReport], out_dir: Path, now: datetime) -> Path:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"audit-{_utc(now).strftime('%Y%m%dT%H%M%SZ')}.json"
+    path = out_dir / f"audit-{stamp(now)}.json"
     text = to_json(reports, now)
     with open(path, "x", encoding="utf-8") as fh:
         fh.write(text)

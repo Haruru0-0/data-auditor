@@ -137,3 +137,47 @@ def test_non_ascii_column_names(tmp_path):
     run(["audit", f, "--out", out])
     html = (out / f"{STEM}.html").read_bytes().decode("utf-8")
     assert "naïve" in html and "日本" in html
+
+
+def test_render_failure_returns_2_and_writes_nothing(tmp_path, capsys, monkeypatch):
+    def boom(reports, now):
+        raise RuntimeError("template broken")
+
+    monkeypatch.setattr("dataauditor.cli.render_html", boom)
+    f = write(tmp_path)
+    out = tmp_path / "out"
+    assert run(["audit", f, "--out", out]) == 2
+    assert not out.exists()
+    err = capsys.readouterr().err
+    assert "template broken" in err
+
+
+def test_html_write_failure_names_kept_json(tmp_path, capsys):
+    f = write(tmp_path)
+    out = tmp_path / "out"
+    out.mkdir()
+    # Only the html path is blocked (a directory there would be caught by the pre-check),
+    # so make the pre-check pass and fail the write by monkeypatching the helper.
+    import dataauditor.cli as cli
+
+    def fail(path, text):
+        raise OSError("disk full")
+
+    orig = cli._write_html
+    cli._write_html = fail
+    try:
+        assert run(["audit", f, "--out", out]) == 2
+    finally:
+        cli._write_html = orig
+    err = capsys.readouterr().err
+    assert "disk full" in err
+    assert f"{STEM}.json" in err and "kept" in err
+    assert (out / f"{STEM}.json").is_file()
+
+
+def test_naive_now_gives_same_stem_for_json_and_html(tmp_path):
+    f = write(tmp_path)
+    out = tmp_path / "out"
+    assert run(["audit", f, "--out", out], now=datetime(2026, 11, 2, 9, 30, 5)) == 0
+    stems = sorted(p.stem for p in out.iterdir())
+    assert len(stems) == 2 and stems[0] == stems[1]

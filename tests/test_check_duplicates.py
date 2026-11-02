@@ -51,3 +51,26 @@ def test_nulls_in_key_column_not_duplicates(con, csv):
 def test_non_ascii_and_quoted_names(con, csv):
     findings = _run(con, csv, 'né_id,"we""ird"\n1,a\n1,b\n')
     assert [(f.column, f.count) for f in findings] == [("né_id", 1)]
+
+
+import pytest
+
+from dataauditor.checks.duplicates import _is_key_like
+
+
+@pytest.mark.parametrize(
+    "name", ["id", "ID", "Key", "user_id", "order-key", "userId", "APIKey", "customer id", "a.id", "userID"]
+)
+def test_key_like_names(name):
+    assert _is_key_like(name)
+
+
+@pytest.mark.parametrize(
+    "name", ["paid", "valid", "is_valid", "void", "grid", "android", "monkey", "hockey", "bid", "identity"]
+)
+def test_not_key_like_names(name):
+    assert not _is_key_like(name)
+
+
+def test_paid_column_with_repeats_gives_no_finding(con, csv):
+    assert _run(con, csv, "paid,n\nyes,a\nyes,b\nno,c\n") == []

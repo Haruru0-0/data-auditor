@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dataauditor.audit import FileReport, audit_path
 from dataauditor.page import render_html
-from dataauditor.report import exit_code, write_json
+from dataauditor.report import exit_code, stamp, write_json
 
 SEVERITIES = ("error", "warning", "info")
 
@@ -42,6 +42,11 @@ def _summary(reports: list[FileReport]) -> list[str]:
     return lines
 
 
+def _write_html(path: Path, text: str) -> None:
+    with open(path, "x", encoding="utf-8") as fh:
+        fh.write(text)
+
+
 def main(argv: list[str] | None = None, now: datetime | None = None) -> int:
     _safe_stdout()
     try:
@@ -60,20 +65,32 @@ def main(argv: list[str] | None = None, now: datetime | None = None) -> int:
         print(f"error: no CSV or Parquet files found in {args.path}", file=sys.stderr)
         return 2
 
-    stamp = now.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    json_path = args.out / f"audit-{stamp}.json"
-    html_path = args.out / f"audit-{stamp}.html"
+    name = stamp(now)
+    json_path = args.out / f"audit-{name}.json"
+    html_path = args.out / f"audit-{name}.html"
     for p in (json_path, html_path):
         if p.exists():
             print(f"error: output file already exists: {p}", file=sys.stderr)
             return 2
 
     try:
+        html_text = render_html(reports, now)
+    except RuntimeError as exc:
+        print(f"error: could not build the HTML report: {exc}", file=sys.stderr)
+        return 2
+
+    try:
         written_json = write_json(reports, args.out, now)
-        with open(html_path, "x", encoding="utf-8") as fh:
-            fh.write(render_html(reports, now))
     except OSError as exc:
         print(f"error: could not write report: {exc}", file=sys.stderr)
+        return 2
+    try:
+        _write_html(html_path, html_text)
+    except OSError as exc:
+        print(
+            f"error: could not write the HTML report: {exc}; the JSON report was kept at {written_json}",
+            file=sys.stderr,
+        )
         return 2
 
     for line in _summary(reports):

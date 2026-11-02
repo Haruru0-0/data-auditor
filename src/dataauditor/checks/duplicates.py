@@ -1,13 +1,19 @@
+import re
+
 import duckdb
 
 from dataauditor.findings import Finding
 from dataauditor.load import Table, quote_ident
 
-KEY_SUFFIXES = ("id", "key")
+# A name is key-like when "id" or "key" is a separate word at its end: the whole name,
+# after a separator (_ - space .), or after a camelCase boundary (userId, APIKey).
+# A plain suffix such as paid, valid, grid or monkey does not count.
+_KEY_CASED = re.compile(r"[a-z0-9](Id|ID|Key|KEY)$|[A-Z]Key$")
+_KEY_WORD = re.compile(r"^(id|key)$|[_\-\s.](id|key)$", re.IGNORECASE)
 
 
 def _is_key_like(name: str) -> bool:
-    return name.lower().endswith(KEY_SUFFIXES)
+    return bool(_KEY_WORD.search(name) or _KEY_CASED.search(name))
 
 
 def check_duplicates(con: duckdb.DuckDBPyConnection, table: Table) -> list[Finding]:
