@@ -11,4 +11,6 @@
 - The built file contains one `url(` string that is a Framer Motion JS literal, not CSS; `check-build.mjs` and `tests/test_page.py` allow exactly that one.
 - React's bundle keeps inert strings (`https://react.dev/errors/` and five W3C namespace URIs). `check-build.mjs` allow-lists exactly those; they are never fetched, and any other `http(s)` fails the build.
 - On a Windows console the CLI prints non-ASCII characters as `?` (stdout falls back to replacement); the HTML and JSON files keep the real text as UTF-8.
+- README numbers are generated: run `python scripts/render_readme.py` (it audits the synthetic demo data), never edit the block between the `numbers` markers by hand.
+- The CI web job diffs `src/dataauditor/static/report.html` against a fresh build (`--ignore-cr-at-eol`); it has only been verified locally on Windows, so drop or normalise that step if the first Linux run differs.
 - DuckDB 1.5.6 reads a 0-byte CSV as one phantom column `column0` with 0 rows, so `open_table` checks file size first and raises `UnreadableFile`.

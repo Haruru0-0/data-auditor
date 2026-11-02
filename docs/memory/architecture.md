@@ -1,6 +1,6 @@
 # Architecture
 
-Status: loader, checks, runner, JSON report, React report page and CLI are built; demo data, README and CI (Task 10) are still planned (see the design doc).
+Status: loader, checks, runner, JSON report, React report page and CLI are built; demo data, the README numbers script and CI are built too (Task 10).
 
 - Python 3.12 package `src/dataauditor`, tests in `tests/`.
 - `load.open_table` creates a uniquely named DuckDB view over `read_csv`/`read_parquet` and returns a `Table` (rows, columns in file order). Failures and unsupported types raise `UnreadableFile`.
