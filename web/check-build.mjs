@@ -24,7 +24,7 @@ for (const bad of ["http://", "https://"]) {
 }
 
 // framer-motion's bundled source tests animated values with a JS string literal
-// (`!e.startsWith(`url(`)`). It is code, not CSS, and loads nothing. Allow exactly it.
+// (`!e.startsWith(`url(`)`). It is code, not CSS, and loads nothing. Every copy of exactly that literal is stripped before the check.
 const URL_ALLOWED = ["startsWith(`url(`)"];
 let noUrl = html;
 for (const ok of URL_ALLOWED) noUrl = noUrl.split(ok).join("");

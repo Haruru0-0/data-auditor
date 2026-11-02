@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { MotionConfig, AnimatePresence, animate, motion, useReducedMotion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -23,6 +23,16 @@ const SEVERITY_STYLE: Record<string, { symbol: string; cls: string; variant: Bad
 const FALLBACK_STYLE = { symbol: "•", cls: "sev-unknown", variant: "secondary" as BadgeVariant, color: "" };
 const EXAMPLES_SHOWN = 3;
 const FAST = 0.3; // seconds; every animation stays under 400 ms
+
+// Entrance props: with reduced motion nothing starts offset or transparent.
+function useEnter(offset: number, delay: number) {
+  const reduce = useReducedMotion();
+  return {
+    initial: reduce ? (false as const) : { opacity: 0, y: offset },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: reduce ? 0 : FAST, delay: reduce ? 0 : delay },
+  };
+}
 
 function styleFor(severity: string) {
   return Object.hasOwn(SEVERITY_STYLE, severity) ? SEVERITY_STYLE[severity] : FALLBACK_STYLE;
@@ -77,6 +87,15 @@ function CountUp({ value }: { value: unknown }) {
   return <strong>{String(target === null ? (value ?? 0) : shown)}</strong>;
 }
 
+function Total({ k, i, value }: { k: string; i: number; value: unknown }) {
+  const enter = useEnter(6, Math.min(i, 8) * 0.04);
+  return (
+    <motion.span className="total inline-flex items-center gap-1.5" {...enter}>
+      <Severity severity={k} /> <CountUp value={value} />
+    </motion.span>
+  );
+}
+
 function Totals({ totals }: { totals: Record<string, number> }) {
   const extra = Object.keys(totals)
     .filter((k) => !(KNOWN as readonly string[]).includes(k))
@@ -85,15 +104,7 @@ function Totals({ totals }: { totals: Record<string, number> }) {
   return (
     <p className="my-3 flex flex-wrap gap-x-5 gap-y-2" data-testid="totals">
       {keys.map((key, i) => (
-        <motion.span
-          className="total inline-flex items-center gap-1.5"
-          key={key}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: FAST, delay: Math.min(i, 8) * 0.04 }}
-        >
-          <Severity severity={key} /> <CountUp value={totals[key] ?? 0} />
-        </motion.span>
+        <Total k={key} i={i} value={totals[key] ?? 0} key={key} />
       ))}
     </p>
   );
@@ -145,6 +156,11 @@ function Examples({ examples }: { examples: string[] }) {
 
 const MotionRow = motion.create(TableRow);
 
+function Row({ i, children }: { i: number; children: ReactNode }) {
+  const enter = useEnter(6, Math.min(i, 10) * 0.03);
+  return <MotionRow {...enter}>{children}</MotionRow>;
+}
+
 function FindingsTable({ findings }: { findings: Finding[] }) {
   return (
     <Table className="min-w-[36rem]">
@@ -160,12 +176,7 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
       </TableHeader>
       <TableBody>
         {findings.map((f, i) => (
-          <MotionRow
-            key={i}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: FAST, delay: Math.min(i, 10) * 0.03 }}
-          >
+          <Row key={i} i={i}>
             <TableCell>
               <Severity severity={String(f.severity)} />
             </TableCell>
@@ -176,7 +187,7 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
             <TableCell className="whitespace-normal">
               <Examples examples={f.examples ?? []} />
             </TableCell>
-          </MotionRow>
+          </Row>
         ))}
       </TableBody>
     </Table>
@@ -186,12 +197,9 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
 function FileCard({ file, index }: { file: FileEntry; index: number }) {
   const columnCount = Object.keys(file.columns ?? {}).length;
   const findings = file.findings ?? [];
+  const enter = useEnter(12, Math.min(index, 8) * 0.06);
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: FAST, delay: Math.min(index, 8) * 0.06 }}
-    >
+    <motion.div {...enter}>
       <Card className="my-4">
         <CardHeader>
           <h2 className="path font-mono text-lg font-semibold [overflow-wrap:anywhere]">{file.path}</h2>

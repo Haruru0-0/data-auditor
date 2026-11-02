@@ -39,6 +39,10 @@ describe("prefers-reduced-motion", () => {
     const { container } = render(<App data={data} />);
     expect(screen.getByText("data/orders.csv")).toBeInTheDocument();
     expect(screen.getByText("has nulls")).toBeInTheDocument();
+    const moved = Array.from(container.querySelectorAll<HTMLElement>("[style]")).filter((e) =>
+      /translate/.test(e.style.transform),
+    );
+    expect(moved).toHaveLength(0);
     // count-up is skipped: final totals are present synchronously
     expect(screen.getByTestId("totals")).toHaveTextContent("✖ error 3");
     expect(screen.getByTestId("totals")).toHaveTextContent("▲ warning 2");
