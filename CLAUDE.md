@@ -13,7 +13,8 @@ Command-line tool that scans CSV and Parquet files and reports data-quality prob
 
 ## Commands
 
-None yet (no code). Add test and run commands here once the package exists.
+- Install: `python -m venv .venv`, then `.venv/Scripts/python.exe -m pip install -e ".[dev]"`
+- Test: `.venv/Scripts/python.exe -m pytest -q`
 
 ## Memory / Code map
 
