@@ -23,7 +23,13 @@ for (const bad of ["http://", "https://"]) {
   if (rest.includes(bad)) problems.push(`forbidden substring outside allow-list: ${bad}`);
 }
 
-for (const bad of ["url(", "@font-face", "<link", "@import"]) {
+// framer-motion's bundled source tests animated values with a JS string literal
+// (`!e.startsWith(`url(`)`). It is code, not CSS, and loads nothing. Allow exactly it.
+const URL_ALLOWED = ["startsWith(`url(`)"];
+let noUrl = html;
+for (const ok of URL_ALLOWED) noUrl = noUrl.split(ok).join("");
+if (noUrl.includes("url(")) problems.push("forbidden substring: url(");
+for (const bad of ["@font-face", "<link", "@import"]) {
   if (html.includes(bad)) problems.push(`forbidden substring: ${bad}`);
 }
 

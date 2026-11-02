@@ -95,10 +95,15 @@ ALLOWED = [
 ]
 
 
+URL_ALLOWED = "startsWith(`url(`)"
+
+
 def test_clean_render_is_self_contained():
     html = page.render_html(clean(), NOW)
-    for bad in ["<link", "@import", "@font-face", "url("]:
+    for bad in ["<link", "@import", "@font-face"]:
         assert bad not in html
+    # framer-motion's JS source has one string literal "url(" (a startsWith test); allow exactly that
+    assert "url(" not in html.replace(URL_ALLOWED, "")
     markup = re.sub(r"<(script|style)\b([^>]*)>.*?</\1>", r"<\1\2></\1>", html, flags=re.S)
     for attr in (r"\ssrc\s*=", r"\shref\s*="):
         assert not re.search(attr, markup, re.I)

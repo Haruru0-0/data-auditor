@@ -1,3 +1,10 @@
+import { useEffect, useState } from "react";
+import { MotionConfig, AnimatePresence, animate, motion, useReducedMotion } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { AuditData, FileEntry, Finding } from "./types";
 
 // A regex, not a string constant: the Python side replaces every literal
@@ -5,13 +12,17 @@ import type { AuditData, FileEntry, Finding } from "./types";
 const PLACEHOLDER = /^__AUDIT_DATA_{2}$/;
 const KNOWN = ["error", "warning", "info"] as const;
 
-// Fixed whitelist: class names and symbols never come from the data.
-const SEVERITY_STYLE: Record<string, { symbol: string; cls: string }> = {
-  error: { symbol: "✖", cls: "sev-error" },
-  warning: { symbol: "▲", cls: "sev-warning" },
-  info: { symbol: "ℹ", cls: "sev-info" },
+type BadgeVariant = "destructive" | "outline" | "secondary";
+
+// Fixed whitelist: class names, variants and symbols never come from the data.
+const SEVERITY_STYLE: Record<string, { symbol: string; cls: string; variant: BadgeVariant; color: string }> = {
+  error: { symbol: "✖", cls: "sev-error", variant: "destructive", color: "" },
+  warning: { symbol: "▲", cls: "sev-warning", variant: "outline", color: "text-sev-warning" },
+  info: { symbol: "ℹ", cls: "sev-info", variant: "outline", color: "text-sev-info" },
 };
-const FALLBACK_STYLE = { symbol: "•", cls: "sev-unknown" };
+const FALLBACK_STYLE = { symbol: "•", cls: "sev-unknown", variant: "secondary" as BadgeVariant, color: "" };
+const EXAMPLES_SHOWN = 3;
+const FAST = 0.3; // seconds; every animation stays under 400 ms
 
 function styleFor(severity: string) {
   return Object.hasOwn(SEVERITY_STYLE, severity) ? SEVERITY_STYLE[severity] : FALLBACK_STYLE;
@@ -37,8 +48,33 @@ export function parseAuditData(text: string | null | undefined): AuditData | nul
 }
 
 function Severity({ severity }: { severity: string }) {
-  const { symbol, cls } = styleFor(severity);
-  return <span className={`sev ${cls}`}>{`${symbol} ${severity}`}</span>;
+  const { symbol, cls, variant, color } = styleFor(severity);
+  return (
+    <Badge variant={variant} className={`sev ${cls} ${color}`}>
+      {`${symbol} ${severity}`}
+    </Badge>
+  );
+}
+
+function CountUp({ value }: { value: unknown }) {
+  const reduce = useReducedMotion();
+  const target = typeof value === "number" && Number.isFinite(value) ? value : null;
+  const [shown, setShown] = useState<number | null>(reduce ? target : target === null ? null : 0);
+  useEffect(() => {
+    if (target === null) return;
+    if (reduce) {
+      setShown(target);
+      return;
+    }
+    const controls = animate(0, target, {
+      duration: 0.4,
+      ease: "easeOut",
+      onUpdate: (v) => setShown(Math.round(v)),
+      onComplete: () => setShown(target),
+    });
+    return () => controls.stop();
+  }, [target, reduce]);
+  return <strong>{String(target === null ? (value ?? 0) : shown)}</strong>;
 }
 
 function Totals({ totals }: { totals: Record<string, number> }) {
@@ -47,87 +83,155 @@ function Totals({ totals }: { totals: Record<string, number> }) {
     .sort();
   const keys = [...KNOWN, ...extra];
   return (
-    <p className="totals" data-testid="totals">
-      {keys.map((key) => (
-        <span className="total" key={key}>
-          <Severity severity={key} /> <strong>{String(totals[key] ?? 0)}</strong>
-        </span>
+    <p className="my-3 flex flex-wrap gap-x-5 gap-y-2" data-testid="totals">
+      {keys.map((key, i) => (
+        <motion.span
+          className="total inline-flex items-center gap-1.5"
+          key={key}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: FAST, delay: Math.min(i, 8) * 0.04 }}
+        >
+          <Severity severity={key} /> <CountUp value={totals[key] ?? 0} />
+        </motion.span>
       ))}
     </p>
   );
 }
 
-function FindingsTable({ findings }: { findings: Finding[] }) {
+const CHIP = "example mr-1.5 mb-1 inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-xs [overflow-wrap:anywhere]";
+
+function Examples({ examples }: { examples: string[] }) {
+  const [open, setOpen] = useState(false);
+  const reduce = useReducedMotion();
+  const first = examples.slice(0, EXAMPLES_SHOWN);
+  const more = examples.slice(EXAMPLES_SHOWN);
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Severity</th>
-            <th>Check</th>
-            <th>Column</th>
-            <th>Message</th>
-            <th>Count</th>
-            <th>Examples</th>
-          </tr>
-        </thead>
-        <tbody>
-          {findings.map((f, i) => (
-            <tr key={i}>
-              <td>
-                <Severity severity={String(f.severity)} />
-              </td>
-              <td>{f.check}</td>
-              <td>{f.column ?? ""}</td>
-              <td>{f.message}</td>
-              <td className="num">{f.count}</td>
-              <td>
-                {(f.examples ?? []).map((ex, j) => (
-                  <code className="example" key={j}>
-                    {ex}
-                  </code>
-                ))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Collapsible open={open} onOpenChange={setOpen}>
+      {first.map((ex, j) => (
+        <code className={CHIP} key={j}>
+          {ex}
+        </code>
+      ))}
+      <AnimatePresence initial={false}>
+        {open && (
+          <CollapsibleContent forceMount asChild>
+            <motion.div
+              className="overflow-hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: reduce ? 0 : FAST }}
+            >
+              {more.map((ex, j) => (
+                <code className={CHIP} key={j}>
+                  {ex}
+                </code>
+              ))}
+            </motion.div>
+          </CollapsibleContent>
+        )}
+      </AnimatePresence>
+      {more.length > 0 && (
+        <CollapsibleTrigger asChild>
+          <button type="button" className="text-xs underline underline-offset-2 hover:text-muted-foreground">
+            {open ? "show fewer" : `show all ${examples.length}`}
+          </button>
+        </CollapsibleTrigger>
+      )}
+    </Collapsible>
   );
 }
 
-function FileCard({ file }: { file: FileEntry }) {
+const MotionRow = motion.create(TableRow);
+
+function FindingsTable({ findings }: { findings: Finding[] }) {
+  return (
+    <Table className="min-w-[36rem]">
+      <TableHeader>
+        <TableRow>
+          <TableHead>Severity</TableHead>
+          <TableHead>Check</TableHead>
+          <TableHead>Column</TableHead>
+          <TableHead>Message</TableHead>
+          <TableHead className="text-right">Count</TableHead>
+          <TableHead>Examples</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {findings.map((f, i) => (
+          <MotionRow
+            key={i}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: FAST, delay: Math.min(i, 10) * 0.03 }}
+          >
+            <TableCell>
+              <Severity severity={String(f.severity)} />
+            </TableCell>
+            <TableCell>{f.check}</TableCell>
+            <TableCell>{f.column ?? ""}</TableCell>
+            <TableCell className="whitespace-normal">{f.message}</TableCell>
+            <TableCell className="num text-right">{f.count}</TableCell>
+            <TableCell className="whitespace-normal">
+              <Examples examples={f.examples ?? []} />
+            </TableCell>
+          </MotionRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function FileCard({ file, index }: { file: FileEntry; index: number }) {
   const columnCount = Object.keys(file.columns ?? {}).length;
   const findings = file.findings ?? [];
   return (
-    <section className="card">
-      <h2 className="path">{file.path}</h2>
-      <p className="meta">
-        {file.rows} rows, {columnCount} columns
-      </p>
-      {findings.length === 0 ? <p className="clean">No problems found</p> : <FindingsTable findings={findings} />}
-    </section>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: FAST, delay: Math.min(index, 8) * 0.06 }}
+    >
+      <Card className="my-4">
+        <CardHeader>
+          <h2 className="path font-mono text-lg font-semibold [overflow-wrap:anywhere]">{file.path}</h2>
+          <p className="meta text-sm text-muted-foreground">
+            {file.rows} rows, {columnCount} columns
+          </p>
+        </CardHeader>
+        <Separator />
+        <CardContent>
+          {findings.length === 0 ? (
+            <p className="clean text-muted-foreground">No problems found</p>
+          ) : (
+            <FindingsTable findings={findings} />
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
 export default function App({ data }: { data: AuditData | null }) {
   const files = data?.files ?? [];
   return (
-    <main>
-      <header>
-        <h1>Data audit</h1>
-        {data && files.length > 0 && (
-          <>
-            <p className="generated">Generated at {data.generated_at}</p>
-            <Totals totals={data.totals} />
-          </>
+    <MotionConfig reducedMotion="user">
+      <main className="mx-auto max-w-6xl p-4">
+        <header>
+          <h1 className="text-2xl font-semibold">Data audit</h1>
+          {data && files.length > 0 && (
+            <>
+              <p className="generated text-sm text-muted-foreground">Generated at {data.generated_at}</p>
+              <Totals totals={data.totals} />
+            </>
+          )}
+        </header>
+        {files.length === 0 ? (
+          <p className="empty text-muted-foreground">No files audited</p>
+        ) : (
+          files.map((file, i) => <FileCard file={file} index={i} key={i} />)
         )}
-      </header>
-      {files.length === 0 ? (
-        <p className="empty">No files audited</p>
-      ) : (
-        files.map((file, i) => <FileCard file={file} key={i} />)
-      )}
-    </main>
+      </main>
+    </MotionConfig>
   );
 }
