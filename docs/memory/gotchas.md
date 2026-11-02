@@ -10,4 +10,5 @@
 - `.mcp.json` runs `shadcn@latest` unpinned.
 - The built file contains one `url(` string that is a Framer Motion JS literal, not CSS; `check-build.mjs` and `tests/test_page.py` allow exactly that one.
 - React's bundle keeps inert strings (`https://react.dev/errors/` and five W3C namespace URIs). `check-build.mjs` allow-lists exactly those; they are never fetched, and any other `http(s)` fails the build.
+- On a Windows console the CLI prints non-ASCII characters as `?` (stdout falls back to replacement); the HTML and JSON files keep the real text as UTF-8.
 - DuckDB 1.5.6 reads a 0-byte CSV as one phantom column `column0` with 0 rows, so `open_table` checks file size first and raises `UnreadableFile`.
