@@ -17,7 +17,7 @@
 - Commits are made as Ahmad: no `Co-Authored-By` and no "Generated with Claude" lines. Never push; the controller asks Ahmad first.
 - README numbers come from generated results, never typed by hand.
 - Saved reports are never overwritten (exclusive create, new timestamped name).
-- Static page: system fonts only; no external scripts, fonts, `http` links or `url(`; light and dark via `prefers-color-scheme`.
+- Report page: React + Vite single-file build with the audit JSON embedded; system fonts only; no external requests (no external scripts, fonts, `http` links or `url(`); the only script blocks are the inline bundle and the JSON data; light and dark via `prefers-color-scheme`.
 - Severity values are exactly `info`, `warning`, `error`. Exit code is 1 only if any finding is `error`.
 - Thresholds are conservative: a clean, normal file must produce no `warning` or `error`.
 
@@ -177,24 +177,29 @@ Rules (pinned): column in `old` but not `new` gives `error`; column only in `new
 - [ ] **Step 4: Run the full suite; expect PASS.**
 - [ ] **Step 5: Commit** `feat: audit runner and JSON report`.
 
-### Task 8: Static HTML page
+### Task 8: React report page (Vite) and Python embedding
+
+Ruling 2026-11-02 (Ahmad asked for a React/Vite page): the report page is a React + TypeScript app built by Vite into ONE self-contained HTML file (inline JS and CSS via `vite-plugin-singlefile`). The built file is committed at `src/dataauditor/static/report.html` so users of the CLI never need Node. Python embeds the audit JSON into it. Replaces the earlier pure-Python `page.py` (commit a0126fb).
 
 **Files:**
-- Create: `src/dataauditor/page.py`, `tests/test_page.py`
+- Create (8a): `web/package.json`, `web/vite.config.ts`, `web/tsconfig.json`, `web/index.html`, `web/src/main.tsx`, `web/src/App.tsx`, `web/src/types.ts`, `web/src/styles.css`, `web/src/App.test.tsx`; build output `src/dataauditor/static/report.html`
+- Modify (8b): `src/dataauditor/page.py` (rewrite), `tests/test_page.py` (rewrite), `pyproject.toml` (package data for `static/report.html`)
 
-**Tier:** sonnet — escaping matters, markup is user-influenced
+**Tier:** sonnet for 8a and 8b; reviews on opus (user-influenced text reaches a page that runs script)
 
 **Interfaces:**
-- Consumes: `FileReport`, `Finding`.
-- Produces: `page.render_html(reports: list[FileReport], generated_at: datetime) -> str`, one self-contained document.
+- Data contract: the JSON produced by `report.to_json` (`generated_at`, `files[{path, rows, columns, findings[{check, severity, column, message, count, examples}]}]`, `totals{info, warning, error}`).
+- `web/index.html` contains `<script id="audit-data" type="application/json">__AUDIT_DATA__</script>`; the app reads and `JSON.parse`s it on load. Without data (placeholder left in) it shows "No files audited".
+- `page.render_html(reports: list[FileReport], generated_at: datetime) -> str`: loads the template from `dataauditor/static/report.html` (importlib.resources), replaces the placeholder with `report.to_json(...)` made safe for a script block (escape `<` as `<`, and U+2028/U+2029), returns one document.
 
-Rules: header with totals by severity, one card per file with a findings table (severity, check, column, message, count, examples), severity shown by label and symbol not colour alone; inline CSS in the same token style as forecast-tracker (system fonts, light and dark); empty list shows "No files audited". Every value from a file (names, examples) is HTML-escaped.
+Rules: no `dangerouslySetInnerHTML`, no `eval`; React renders all file-derived text as text nodes. System fonts only; light and dark via `prefers-color-scheme`; severity shown by label and symbol, not colour alone; header with totals by severity; one card per file with a findings table (severity, check, column, message, count, examples) in a horizontally scrolling wrapper; "No files audited" for an empty list, "No problems found" for a clean file. No network requests: the built file contains no `http://`, `https://`, `url(`, `@font-face`, `<link`, `@import`, or `src=`/`href=` to another resource; the only `<script>` blocks are the inline bundle and the JSON data block.
 
-- [ ] **Step 1: Write failing tests:** file name and counts appear; a column named `<script>alert(1)</script>` appears escaped and the raw tag does not; output contains `prefers-color-scheme` and none of `http://`, `https://`, `url(`, `@font-face`, `<script`; empty list contains "No files audited".
-- [ ] **Step 2: Run; expect FAIL.**
-- [ ] **Step 3: Implement `render_html`** with `html.escape` on all dynamic text.
-- [ ] **Step 4: Run; expect PASS.**
-- [ ] **Step 5: Commit** `feat: static HTML report page`.
+- [ ] **Step 1 (8a): Write failing component tests (Vitest + Testing Library):** file name and totals render; hostile strings (`<script>alert(1)</script>` as a column name, `"><img src=x onerror=alert(1)>` as a message and an example, a hostile check and severity) appear as text and create no `script` or `img` element; empty data shows "No files audited"; clean file shows "No problems found"; unknown severity renders safely.
+- [ ] **Step 2: Run `npm test` in `web/`; expect FAIL.**
+- [ ] **Step 3: Implement the app and build** (`npm run build` writes `src/dataauditor/static/report.html`); a build-output test or script check asserts none of the forbidden strings above appear.
+- [ ] **Step 4: Run `npm test` and `npm run build`; expect PASS.** Commit `feat: React report page (Vite, single-file build)`.
+- [ ] **Step 5 (8b): Write failing Python tests in `tests/test_page.py`:** output contains the file name and counts via the embedded JSON; the embedded JSON parses back to `to_json` output; hostile strings including `</script><script>alert(1)</script>` and `<!--` in a message never appear raw in the output (only `<` escaped); output is deterministic; empty list embeds an empty `files` list; the built template is found when the package is installed (resource lookup).
+- [ ] **Step 6: Run `pytest tests/test_page.py -q`; expect FAIL. Implement `page.py`; expect PASS. Full suite.** Commit `feat: embed audit JSON in the React report page`.
 
 ### Task 9: Command-line interface
 

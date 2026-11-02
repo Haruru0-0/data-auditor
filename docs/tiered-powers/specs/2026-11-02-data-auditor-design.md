@@ -17,7 +17,7 @@ The point of the project is to show careful engineering on a problem every data 
   3. Type problems: numbers or dates stored as text, mixed types in one column.
   4. Outliers in numeric columns (a robust rule, not mean and standard deviation).
   5. Schema drift: compare two versions of the same file (columns added, removed, retyped).
-- Three outputs from one run: a terminal summary, a JSON report, a static HTML page (same look and rules as forecast-tracker: inline SVG, system fonts, light and dark, no external requests).
+- Three outputs from one run: a terminal summary, a JSON report, a self-contained HTML report page (React + Vite single-file build with the audit JSON embedded; system fonts, light and dark, no external requests).
 - Exit code reflects findings, so it can fail a CI job.
 - README numbers come from generated results on public demo datasets, never typed by hand.
 
@@ -41,7 +41,7 @@ The point of the project is to show careful engineering on a problem every data 
 - Pinned dependencies; no network access at audit time.
 - Commits are made as Ahmad: no `Co-Authored-By` and no "Generated with Claude" lines. Never push without his explicit yes. (Same rules as forecast-tracker.)
 - Saved reports are never overwritten; each run writes a new timestamped file.
-- Static page: system fonts only, no external scripts, fonts or `url(`.
+- Report page: React + Vite single-file build, audit JSON embedded; system fonts only, no external requests (no external scripts, fonts or `url(`).
 
 ## Decisions Ahmad made
 
