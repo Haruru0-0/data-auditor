@@ -8,6 +8,7 @@ Made by Ahmad:
 
 - Stay on Python for everything (audit now, cleaning later); Rust was considered and dropped for v1 (decided 2026-11-02).
 - The report page is React + Vite, replacing the pure-Python page (2026-11-02). Ruled by Claude on how: single-file build committed at `src/dataauditor/static/report.html` so CLI users need no Node; audit JSON embedded in a script block; no external requests. Costs: the page needs JavaScript, and CI needs Node.
+- Ahmad also wants shadcn/ui and Framer Motion for the page's animation, and the shadcn MCP server and registries set up for the repo (2026-11-02). Built in Task 8c; `.mcp.json` has the shadcn server, registries stay at the default.
 
 Made by Claude (marked as calls in the design doc, open to change):
 - Name `data-auditor`, package `dataauditor`.

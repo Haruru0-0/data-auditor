@@ -9,7 +9,7 @@ Command-line tool that scans CSV and Parquet files and reports data-quality prob
 - Commits are made as Ahmad: no `Co-Authored-By` and no "Generated with Claude" lines. Never push without his explicit yes.
 - README numbers come from generated results, never typed by hand.
 - Saved reports are never overwritten; each run writes a new timestamped file.
-- Report page: React + Vite (`web/`), built to one self-contained file at `src/dataauditor/static/report.html` (committed, so CLI users need no Node). Audit JSON is embedded. System fonts only, no external requests (no external scripts, fonts or `url(`). Never use `dangerouslySetInnerHTML`.
+- Report page: React + Vite (`web/`), built to one self-contained file at `src/dataauditor/static/report.html` (committed, so CLI users need no Node). Audit JSON is embedded. System fonts only, no external requests (no external scripts, fonts or `url(`). Never use `dangerouslySetInnerHTML`. UI uses shadcn/ui (Tailwind) components and Framer Motion for animation, with `prefers-reduced-motion` respected; shadcn MCP is configured in `.mcp.json`.
 
 ## Commands
 
