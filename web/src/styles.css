@@ -1,0 +1,134 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #1b1f24;
+  --muted: #5b6470;
+  --border: #d5dae0;
+  --error: #b42318;
+  --warning: #8a5a00;
+  --info: #175cd3;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171b;
+    --card: #1d2228;
+    --text: #e8ebef;
+    --muted: #a0a9b5;
+    --border: #343b44;
+    --error: #ff8a80;
+    --warning: #ffcc66;
+    --info: #8ab4ff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.45;
+}
+
+main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.6rem;
+}
+
+h2.path {
+  margin: 0;
+  font-size: 1.1rem;
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.generated,
+.meta {
+  margin: 0.25rem 0;
+  color: var(--muted);
+}
+
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 36rem;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+td.num {
+  text-align: right;
+}
+
+.example {
+  display: inline-block;
+  font-family: var(--mono);
+  margin: 0 0.4rem 0.2rem 0;
+  overflow-wrap: anywhere;
+}
+
+.sev {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sev-error {
+  color: var(--error);
+}
+
+.sev-warning {
+  color: var(--warning);
+}
+
+.sev-info {
+  color: var(--info);
+}
+
+.sev-unknown {
+  color: var(--muted);
+}
+
+.clean,
+.empty {
+  color: var(--muted);
+  margin: 0.75rem 0 0;
+}
