@@ -1,84 +1,113 @@
+import json
 import re
 from datetime import datetime, timezone
 
+import pytest
+
+from dataauditor import page
 from dataauditor.audit import FileReport
 from dataauditor.findings import Finding
-from dataauditor.page import render_html
+from dataauditor.report import to_json
 
 NOW = datetime(2026, 11, 2, 9, 30, 5, tzinfo=timezone.utc)
-
-FORBIDDEN = ["http://", "https://", "url(", "@font-face", "<script", "@import",
-             "onerror=", "onload=", "onclick="]
+BLOCK = re.compile(r'<script id="audit-data" type="application/json">(.*?)</script>', re.S)
 
 
-def clean_reports():
-    return [
-        FileReport("data/sales.csv", 120, {"id": "BIGINT", "name": "VARCHAR"}, [
-            Finding("missing", "error", "id", "3 missing values", 3, ("row 4",)),
-            Finding("outliers", "warning", "name", "odd values", 2, ("x", "y")),
-            Finding("types", "info", None, "note", 1),
-        ]),
-        FileReport("data/clean.csv", 5, {"a": "BIGINT"}, []),
-    ]
+def clean():
+    return [FileReport("data/a.csv", 3, {"x": "BIGINT"},
+                       [Finding("missing", "error", "x", "3 missing", 3, ("e1",))])]
 
 
-def test_names_and_counts_appear():
-    out = render_html(clean_reports(), NOW)
-    assert "data/sales.csv" in out
-    assert "120" in out
-    assert "Data audit" in out
-    assert "2026-11-02T09:30:05Z" in out
-    assert "No problems found" in out
-    for label in ("error", "warning", "info"):
-        assert label in out
+def with_message(msg, **kw):
+    return [FileReport(kw.get("path", "a.csv"), 1, {"x": "BIGINT"},
+                       [Finding("missing", "error", "x", msg, 1, ("e",))])]
 
 
-def test_severity_has_symbol_and_label():
-    out = render_html(clean_reports(), NOW)
-    assert "✖ error" in out and "▲ warning" in out and "ℹ info" in out
+def embedded(html):
+    return json.loads(BLOCK.search(html).group(1))
 
 
-def test_document_shape():
-    out = render_html(clean_reports(), NOW)
-    assert out.lstrip().lower().startswith("<!doctype html>")
-    assert '<html lang="en">' in out
-    assert '<meta charset="utf-8">' in out
-    assert '<meta name="viewport" content="width=device-width, initial-scale=1">' in out
-    assert "<title>" in out
-    assert "prefers-color-scheme" in out
-    assert "overflow-x: auto" in out
+def test_embeds_path_and_json_round_trips():
+    html = page.render_html(clean(), NOW)
+    assert "data/a.csv" in html
+    assert embedded(html) == json.loads(to_json(clean(), NOW))
 
 
-def test_no_forbidden_markup_for_clean_data():
-    out = render_html(clean_reports(), NOW)
-    for bad in FORBIDDEN:
-        assert bad not in out, bad
-    assert not re.search(r"<link\b", out)
+def test_hostile_strings_are_neutralised():
+    reports = [FileReport(
+        "<img src=x onerror=alert(1)>.csv", 1, {"<img src=x onerror=alert(1)>": "BIGINT"},
+        [Finding("<b>chk", "<b>sev", "<img src=x onerror=alert(1)>",
+                 "</script><script>alert(1)</script>", 1, ("<!-- <script>",))])]
+    # severity is only counted in totals, so keep to_json happy
+    html = page.render_html(reports, NOW)
+    empty = page.render_html([], NOW)
+    for raw in ["<img src=x", "<b>chk", "<b>sev", "<!-- <script>", "alert(1)</script>",
+                "</script><script>"]:
+        assert raw not in html
+    assert html.count("</script>") == empty.count("</script>")
+    assert embedded(html) == json.loads(to_json(reports, NOW))
+    f = embedded(html)["files"][0]
+    assert f["findings"][0]["message"] == "</script><script>alert(1)</script>"
+    assert f["findings"][0]["examples"] == ["<!-- <script>"]
+    assert f["findings"][0]["check"] == "<b>chk"
+    assert f["findings"][0]["severity"] == "<b>sev"
+
+
+def test_line_separators_round_trip():
+    msg = "a" + chr(0x2028) + "b" + chr(0x2029) + "c"
+    html = page.render_html(with_message(msg), NOW)
+    assert chr(0x2028) not in html and chr(0x2029) not in html
+    assert embedded(html)["files"][0]["findings"][0]["message"] == msg
+
+
+def test_backslash_sequences_are_literal():
+    bs = chr(92)
+    msg = bs + "g<0> and " + bs + "1 and " + bs + bs + " and " + bs + "u0041"
+    html = page.render_html(with_message(msg), NOW)
+    assert embedded(html)["files"][0]["findings"][0]["message"] == msg
 
 
 def test_empty_list():
-    out = render_html([], NOW)
-    assert "No files audited" in out
-    for bad in FORBIDDEN:
-        assert bad not in out, bad
-
-
-def test_hostile_data_is_escaped():
-    reports = [FileReport(
-        "<b>evil</b>.csv", 1, {"<script>alert(1)</script>": "<i>T</i>"},
-        [Finding("missing", "error", "<script>alert(1)</script>",
-                 '"><img src=x onerror=alert(1)>', 1, ("url(http://evil)",))],
-    )]
-    out = render_html(reports, NOW)
-    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in out
-    assert "&quot;&gt;&lt;img src=x onerror=alert(1)&gt;" in out
-    assert "&lt;b&gt;evil&lt;/b&gt;.csv" in out
-    assert "<script" not in out
-    assert "<img" not in out
-    assert "<b>evil" not in out
-    assert '"><img' not in out
-    assert "<i>T" not in out
+    html = page.render_html([], NOW)
+    assert '"files": []' in html
+    assert embedded(html)["files"] == []
 
 
 def test_deterministic():
-    assert render_html(clean_reports(), NOW) == render_html(clean_reports(), NOW)
+    assert page.render_html(clean(), NOW) == page.render_html(clean(), NOW)
+
+
+@pytest.mark.parametrize("template", ["<html>no placeholder</html>",
+                                      "__AUDIT_DATA__ and __AUDIT_DATA__"])
+def test_placeholder_must_appear_exactly_once(monkeypatch, template):
+    monkeypatch.setattr(page, "_load_template", lambda: template)
+    with pytest.raises(RuntimeError):
+        page.render_html([], NOW)
+
+
+ALLOWED = [
+    "https://react.dev/errors/",
+    "http://www.w3.org/1999/xhtml",
+    "http://www.w3.org/1998/Math/MathML",
+    "http://www.w3.org/2000/svg",
+    "http://www.w3.org/1999/xlink",
+    "http://www.w3.org/XML/1998/namespace",
+]
+
+
+def test_clean_render_is_self_contained():
+    html = page.render_html(clean(), NOW)
+    for bad in ["<link", "@import", "@font-face", "url("]:
+        assert bad not in html
+    markup = re.sub(r"<(script|style)\b([^>]*)>.*?</\1>", r"<\1\2></\1>", html, flags=re.S)
+    for attr in (r"\ssrc\s*=", r"\shref\s*="):
+        assert not re.search(attr, markup, re.I)
+    rest = html
+    for ok in ALLOWED:
+        rest = rest.replace(ok, "")
+    assert "http://" not in rest and "https://" not in rest
+
+
+def test_template_found_via_package_resource(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert '"files"' in page.render_html(clean(), NOW)
