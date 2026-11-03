@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dataauditor.audit import FileReport, audit_path
-from dataauditor.page import render_html
 from dataauditor.report import exit_code, stamp, write_json
 
 SEVERITIES = ("error", "warning", "info")
@@ -20,7 +19,7 @@ def _parser() -> argparse.ArgumentParser:
     audit.add_argument("--baseline", type=Path, default=None,
                        help="earlier file (or folder) to compare the schema against")
     audit.add_argument("--out", type=Path, default=Path("reports"),
-                       help="folder for the saved reports (default: reports)")
+                       help="folder for the saved report (default: reports)")
     return parser
 
 
@@ -34,17 +33,12 @@ def _safe_stdout() -> None:
 def _summary(reports: list[FileReport]) -> list[str]:
     lines: list[str] = []
     for r in reports:
-        lines.append(f"{r.path}: {r.rows} rows, {len(r.columns)} columns")
+        lines.append(f"{r.path}: {r.rows} rows, {len(r.columns)} columns, quality {r.score}/100")
         counts = {s: sum(1 for f in r.findings if f.severity == s) for s in SEVERITIES}
         lines.append("  " + ", ".join(f"{s}: {n}" for s, n in counts.items()))
         for f in r.findings:
             lines.append(f"  {f.severity} {f.check} {f.column or '-'} {f.message}")
     return lines
-
-
-def _write_html(path: Path, text: str) -> None:
-    with open(path, "x", encoding="utf-8") as fh:
-        fh.write(text)
 
 
 def main(argv: list[str] | None = None, now: datetime | None = None) -> int:
@@ -65,18 +59,9 @@ def main(argv: list[str] | None = None, now: datetime | None = None) -> int:
         print(f"error: no CSV or Parquet files found in {args.path}", file=sys.stderr)
         return 2
 
-    name = stamp(now)
-    json_path = args.out / f"audit-{name}.json"
-    html_path = args.out / f"audit-{name}.html"
-    for p in (json_path, html_path):
-        if p.exists():
-            print(f"error: output file already exists: {p}", file=sys.stderr)
-            return 2
-
-    try:
-        html_text = render_html(reports, now)
-    except RuntimeError as exc:
-        print(f"error: could not build the HTML report: {exc}", file=sys.stderr)
+    json_path = args.out / f"audit-{stamp(now)}.json"
+    if json_path.exists():
+        print(f"error: output file already exists: {json_path}", file=sys.stderr)
         return 2
 
     try:
@@ -84,16 +69,8 @@ def main(argv: list[str] | None = None, now: datetime | None = None) -> int:
     except OSError as exc:
         print(f"error: could not write report: {exc}", file=sys.stderr)
         return 2
-    try:
-        _write_html(html_path, html_text)
-    except OSError as exc:
-        print(
-            f"error: could not write the HTML report: {exc}; the JSON report was kept at {written_json}",
-            file=sys.stderr,
-        )
-        return 2
 
     for line in _summary(reports):
         print(line)
-    print(f"wrote {written_json} and {html_path}")
+    print(f"wrote {written_json}")
     return exit_code(reports)

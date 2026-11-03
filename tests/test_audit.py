@@ -1,5 +1,7 @@
 import pytest
 
+from dataauditor.findings import Finding
+
 from dataauditor.audit import FileReport, audit_path
 
 CLEAN = "id,name,score\n" + "".join(f"{i},name{i},{10 + i % 5}\n" for i in range(1, 21))
@@ -138,3 +140,131 @@ def test_oserror_in_check_is_read_error(tmp_path, monkeypatch):
     monkeypatch.setattr(audit_mod, "check_outliers", boom)
     (r,) = audit_path(tmp_path)
     assert [(f.check, f.severity) for f in r.findings] == [("read", "error")]
+
+
+def test_new_checks_run_through_audit_path(csv):
+    rows = [
+        f"{i},{'Beirut' if i % 4 else 'beirut'},{-5 if i == 3 else 20 + i},{'N/A' if i < 3 else 'ok' + str(i)},y,{i}"
+        for i in range(1, 21)
+    ]
+    text = "id,city,age,note,flag,id\n" + "\n".join(rows) + "\n"
+    found = {f.check for f in audit_path(csv("n.csv", text))[0].findings}
+    assert {"constant", "whitespace", "missing-marker", "impossible", "header"} <= found
+
+
+def test_heuristic_checks_run_through_audit_path(csv):
+    rows = []
+    for i in range(1, 120):
+        rows.append(
+            ",".join(
+                [
+                    str(i),
+                    "2024-01-05" if i % 5 else "05/01/2024",
+                    "bad" if i == 2 else "a@b.com",
+                    "Lebnon" if i == 3 else "Norway" if i == 4 else "Lebanon",
+                    "no" if i == 7 else "yes",
+                    "2024-01-01",
+                    "2023-01-01" if i == 5 else "2024-02-01",
+                ]
+            )
+        )
+    rows.append("120,,,,,,")  # mostly empty
+    text = "id,seen,email,city,flag,start_date,end_date\n" + "\n".join(rows) + "\n"
+    found = {(f.check, f.column) for f in audit_path(csv("h.csv", text))[0].findings}
+    assert {
+        ("format", "seen"),  # mixed date formats
+        ("format", "email"),  # invalid email
+        ("typo", "city"),
+        ("skew", "flag"),  # dominant value
+        ("skew", None),  # mostly-empty row
+        ("date-order", "end_date"),
+    } <= found
+
+
+def test_report_has_profile_and_score(csv):
+    [r] = audit_path(csv("p.csv", "id,name\n1,a\n2,b\n3,\n"))
+    assert list(r.profile) == ["id", "name"]
+    assert r.profile["id"]["max"] == 3
+    assert r.profile["name"]["missing"] == 1
+    from dataauditor.score import quality_score
+    assert r.score == quality_score(r.findings)
+
+
+def test_unreadable_file_has_empty_profile_and_zero_score(tmp_path):
+    (tmp_path / "bad.csv").write_bytes(b"")
+    [r] = audit_path(tmp_path / "bad.csv")
+    assert r.profile == {} and r.score == 0
+
+
+def test_profile_failure_becomes_read_error(csv, monkeypatch):
+    import duckdb
+    import dataauditor.audit as audit_mod
+
+    def boom(con, table):
+        raise duckdb.Error("profile broke")
+
+    monkeypatch.setattr(audit_mod, "profile_columns", boom)
+    [r] = audit_path(csv("x.csv", "a\n1\n"))
+    assert r.findings[-1].check == "read" and r.profile == {} and r.score == 0
+
+
+def test_filereport_constructor_without_profile_still_works():
+    assert FileReport("a.csv", 0, {}, []).profile == {}
+
+
+def test_read_error_keeps_first_line_and_is_capped(tmp_path, monkeypatch):
+    import duckdb
+
+    import dataauditor.audit as audit_mod
+
+    (tmp_path / "a.csv").write_text(CLEAN, encoding="utf-8")
+    long_line = "first line " + "x" * 500
+
+    def boom(con, table):
+        raise duckdb.Error(long_line + "\nSELECT secret FROM C:\tmp\file.csv\nsniffer dump")
+
+    monkeypatch.setattr(audit_mod, "check_missing", boom)
+    (r,) = audit_path(tmp_path)
+    msg = r.findings[0].message
+    assert msg.startswith("first line ") and len(msg) <= 300
+    assert "SELECT" not in msg and "sniffer" not in msg
+
+
+def _types_text(column):
+    return Finding("types", "warning", column, "numbers stored as text: 1 of 9 non-null values do not fit", 1)
+
+
+def test_drop_explained_types_only_with_format_or_marker_on_same_column():
+    from dataauditor.audit import drop_explained_types
+
+    mixed = Finding("types", "warning", "m", "mixed types: 50.0% of values look numeric, the rest are text", 4)
+    findings = [
+        _types_text("d"), Finding("format", "warning", "d", "dates in 2 different formats", 2),
+        _types_text("n"), Finding("missing-marker", "warning", "n", "1 value(s) look like missing data", 1),
+        _types_text("plain"),
+        _types_text("other"), Finding("format", "warning", "elsewhere", "x", 1),
+        mixed, Finding("format", "warning", "m", "x", 1),
+    ]
+    kept = drop_explained_types(findings)
+    assert [(f.check, f.column) for f in kept] == [
+        ("format", "d"), ("missing-marker", "n"), ("types", "plain"), ("types", "other"),
+        ("format", "elsewhere"), ("types", "m"), ("format", "m"),
+    ]
+
+
+def test_mixed_dates_report_only_format(csv):
+    rows = ["id,d"] + [f"{i},2024-01-{i % 28 + 1:02d}" for i in range(12)] + [f"{i},05/01/2024" for i in range(12, 20)]
+    [r] = audit_path(csv("md.csv", "\n".join(rows) + "\n"))
+    assert [f.check for f in r.findings if f.column == "d"] == ["format"]
+
+
+def test_numeric_text_with_marker_reports_only_marker(csv):
+    rows = ["id,v"] + [f"{i},{i}" for i in range(80)] + ["80,n/a", "81,n/a"]
+    [r] = audit_path(csv("nm.csv", "\n".join(rows) + "\n"))
+    assert [f.check for f in r.findings if f.column == "v"] == ["missing-marker"]
+
+
+def test_plain_numbers_as_text_keep_the_types_finding(csv):
+    rows = ["id,v"] + [f"{i},{i}" for i in range(80)] + ["80,abc", "81,def"]
+    [r] = audit_path(csv("pt.csv", "\n".join(rows) + "\n"))
+    assert "types" in [f.check for f in r.findings if f.column == "v"]

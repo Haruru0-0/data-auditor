@@ -75,11 +75,31 @@ def test_every_injected_fault_is_found(audited):
     assert result["faults_found"] == result["faults_injected"]
 
 
-def test_all_five_check_families_are_covered(audited):
+def test_every_check_family_is_covered(audited):
     _, faults, _ = audited
     kinds = {f.split(":")[0] for fs in faults.values() for f in fs}
     families = {render.FAULT_TO_CHECK[k] for k in kinds}
-    assert families == {"missing", "duplicates", "types", "outliers", "schema"}
+    assert families == {
+        "missing", "duplicates", "types", "outliers", "schema", "constant", "whitespace",
+        "missing-marker", "impossible", "header", "format", "typo", "skew", "date-order",
+    }
+
+
+def test_numbers_as_text_fault_is_not_a_missing_marker(audited):
+    # The placeholder in the numbers-as-text fault must not be a missing marker, so only
+    # `types` explains it; the separate text-placeholder fault covers `missing-marker`.
+    _, faults, reports = audited
+    assert faults["products.csv"] == ["text_numbers:price"]
+    products = next(r for r in reports if Path(r.path).name == "products.csv")
+    assert [f for f in products.findings if f.check == "missing-marker"] == []
+
+
+def test_every_fault_is_found_by_its_own_check(audited):
+    _, faults, reports = audited
+    by_file = {Path(r.path).name: r for r in reports}
+    for name, injected in faults.items():
+        for fault in injected:
+            assert any(render.fault_matches(fault, f) for f in by_file[name].findings), (name, fault)
 
 
 def test_clean_file_has_no_warning_or_error(audited):

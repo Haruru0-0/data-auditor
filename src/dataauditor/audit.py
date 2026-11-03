@@ -1,15 +1,26 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import duckdb
 
+from dataauditor.checks.constant import check_constant
 from dataauditor.checks.duplicates import check_duplicates
+from dataauditor.checks.dateorder import check_date_order
+from dataauditor.checks.formats import check_formats
+from dataauditor.checks.headers import check_headers
+from dataauditor.checks.impossible import check_impossible
+from dataauditor.checks.markers import check_missing_markers
 from dataauditor.checks.missing import check_missing
 from dataauditor.checks.outliers import check_outliers
 from dataauditor.checks.schema import compare_schemas
+from dataauditor.checks.skew import check_skew
 from dataauditor.checks.types import check_types
+from dataauditor.checks.typos import check_typos
+from dataauditor.checks.whitespace import check_whitespace
 from dataauditor.findings import Finding
 from dataauditor.load import Table, UnreadableFile, open_table
+from dataauditor.profile import profile_columns
+from dataauditor.score import quality_score
 
 SUPPORTED = {".csv", ".parquet"}
 
@@ -20,6 +31,31 @@ class FileReport:
     rows: int
     columns: dict[str, str]
     findings: list[Finding]
+    profile: dict = field(default_factory=dict)
+
+    @property
+    def score(self) -> int:
+        return quality_score(self.findings)
+
+
+READ_ERROR_MAX = 300
+
+
+def _read_error(exc: Exception) -> Finding:
+    """A `read` finding with only the first line of the message (DuckDB's full
+    diagnostic can hold SQL, sniffer dumps and temp paths), capped in length."""
+    lines = str(exc).strip().splitlines()
+    return Finding("read", "error", None, (lines[0] if lines else type(exc).__name__)[:READ_ERROR_MAX], 1)
+
+
+def drop_explained_types(findings: list[Finding]) -> list[Finding]:
+    """Drop a "stored as text" `types` finding when the same column also has a `format`
+    or `missing-marker` finding, which already explains why it is text."""
+    explained = {f.column for f in findings if f.check in ("format", "missing-marker")}
+    return [
+        f for f in findings
+        if not (f.check == "types" and "stored as text" in f.message and f.column in explained)
+    ]
 
 
 def _files_in(folder: Path) -> list[Path]:
@@ -43,18 +79,29 @@ def _audit_file(con, path: Path, baseline: Path | None, use_baseline: bool) -> F
     try:
         table = open_table(con, path)
     except UnreadableFile as exc:
-        return FileReport(str(path), 0, {}, [Finding("read", "error", None, str(exc), 1)])
+        return FileReport(str(path), 0, {}, [_read_error(exc)])
     findings: list[Finding] = []
     try:
         findings += check_missing(con, table)
         findings += check_duplicates(con, table)
         findings += check_types(con, table)
         findings += check_outliers(con, table)
+        findings += check_constant(con, table)
+        findings += check_whitespace(con, table)
+        findings += check_missing_markers(con, table)
+        findings += check_impossible(con, table)
+        findings += check_headers(con, table)
+        findings += check_formats(con, table)
+        findings += check_typos(con, table)
+        findings += check_skew(con, table)
+        findings += check_date_order(con, table)
         if use_baseline:
             findings += _schema_findings(con, table, baseline)
+        findings = drop_explained_types(findings)
+        profile = profile_columns(con, table)
     except (duckdb.Error, OSError) as exc:
-        return FileReport(str(path), 0, {}, [Finding("read", "error", None, str(exc), 1)])
-    return FileReport(str(path), table.rows, table.columns, findings)
+        return FileReport(str(path), 0, {}, [_read_error(exc)])
+    return FileReport(str(path), table.rows, table.columns, findings, profile)
 
 
 def audit_path(path: Path, baseline: Path | None = None) -> list[FileReport]:

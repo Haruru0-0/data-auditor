@@ -34,9 +34,9 @@ const data: AuditData = {
 
 describe("prefers-reduced-motion", () => {
   it("renders all content at once and the toggle still works", async () => {
-    const { default: App } = await import("./App");
+    const { default: AuditReport } = await import("./AuditReport");
     expect(window.matchMedia("(prefers-reduced-motion: reduce)").matches).toBe(true);
-    const { container } = render(<App data={data} />);
+    const { container } = render(<AuditReport data={data} />);
     expect(screen.getByText("data/orders.csv")).toBeInTheDocument();
     expect(screen.getByText("has nulls")).toBeInTheDocument();
     const moved = Array.from(container.querySelectorAll<HTMLElement>("[style]")).filter((e) =>

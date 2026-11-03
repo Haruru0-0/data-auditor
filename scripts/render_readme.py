@@ -27,6 +27,17 @@ FAULT_TO_CHECK = {
     "outlier": "outliers",
     "schema_dropped": "schema",
     "schema_retyped": "schema",
+    "text_placeholder": "missing-marker",
+    "constant": "constant",
+    "padded_case": "whitespace",
+    "impossible": "impossible",
+    "header_unnamed": "header",
+    "header_duplicate": "header",
+    "mixed_dates": "format",
+    "bad_email": "format",
+    "typo": "typo",
+    "empty_rows": "skew",
+    "date_order": "date-order",
 }
 
 

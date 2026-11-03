@@ -30,6 +30,8 @@ def to_json(reports: list[FileReport], generated_at: datetime) -> str:
             "path": r.path,
             "rows": r.rows,
             "columns": dict(r.columns),
+            "score": r.score,
+            "profile": r.profile,
             "findings": [
                 {
                     "check": f.check,

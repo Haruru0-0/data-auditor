@@ -18,6 +18,8 @@ FIRST = ["Amira", "Ben", "Chen", "Dalia", "Elias", "Farah", "Gus", "Hana", "Ivo"
 CITIES = ["Beirut", "Berlin", "Lagos", "Lima", "Oslo", "Pune", "Quito", "Turin"]
 ACTIONS = ["view", "click", "scroll", "search", "logout"]
 NOTES = ["fine", "slow delivery", "great", "would buy again", "late", "ok"]
+SEGMENTS = ["retail", "wholesale", "online"]
+PLANS = ["free", "basic", "pro"]
 ROWS = 200
 
 
@@ -60,8 +62,8 @@ def _events(rng):
 def _products(rng):
     rows = [[str(1000 + i), f"{rng.uniform(5, 95):.2f}", str(rng.randint(0, 50))]
             for i in range(ROWS)]
-    for i in (10, 60, 110, 160):  # 2% of prices are text
-        rows[i][1] = "n/a"
+    for i in (10, 60, 110, 160):  # 2% of prices are text (not a missing marker, so only `types` reports it)
+        rows[i][1] = "free"
     return ["product_id", "price", "stock"], rows, ["text_numbers:price"]
 
 
@@ -88,13 +90,67 @@ def _inventory(rng):
     return ["sku", "warehouse", "qty"], cur_rows, ["schema_dropped:region", "schema_retyped:qty"], baseline
 
 
+def _contacts(rng):
+    rows = [[str(i), rng.choice(FIRST), f"user{i}@example.com", "LB", rng.choice(CITIES),
+             rng.choice(SEGMENTS), rng.choice(NOTES)] for i in range(1, ROWS + 1)]
+    for i in (20, 80, 140):  # not valid email addresses
+        rows[i][2] = f"user{i + 1}.example.com"
+    for i in (30, 100):  # a typo of the most common spellings (one swap, one deletion)
+        rows[i][4] = {"Berlin": "Berlni", "Beirut": "Beirt"}.get(rows[i][4], "Berlni")
+    for i in (10, 50, 90):  # padded or different case
+        rows[i][5] = rng.choice([" retail", "Retail", "online "])
+    for i in (5, 65, 125, 185):  # text placeholders for missing data
+        rows[i][6] = rng.choice(["n/a", "null"])
+    header = ["contact_id", "name", "email", "country", "city", "segment", "notes"]
+    return header, rows, [
+        "bad_email:email", "constant:country", "typo:city", "padded_case:segment",
+        "text_placeholder:notes",
+    ]
+
+
+def _staff(rng):
+    rows = []
+    for i in range(1, ROWS + 1):
+        start = _date(rng)
+        end = f"{int(start[:4]) + 1}{start[4:]}"  # always a year after the start
+        rows.append([str(i), rng.choice(FIRST), str(rng.randint(20, 65)), start, end, _date(rng)])
+    # Impossible ages, kept close enough to the rest that `outliers` stays quiet.
+    rows[40][2], rows[90][2] = "-1", "125"
+    for i in (15, 75, 135):  # end date before start date
+        rows[i][4] = f"{int(rows[i][3][:4]) - 1}{rows[i][3][4:]}"
+    for i in range(0, ROWS, 5):  # a fifth of the join dates are written day/month/year
+        y, m, d = rows[i][5].split("-")
+        rows[i][5] = f"{d}/{m}/{y}"
+    header = ["staff_id", "name", "age", "start_date", "end_date", "joined"]
+    return header, rows, ["impossible:age", "date_order:end_date", "mixed_dates:joined"]
+
+
+def _signups(rng):
+    rows = [[str(i), rng.choice(FIRST), rng.choice(PLANS), rng.choice(CITIES), rng.choice(ACTIONS)]
+            for i in range(1, ROWS + 1)]
+    for i in (45, 130, 170):  # only the id is filled in
+        rows[i][1:] = ["", "", "", ""]
+    return ["signup_id", "name", "plan", "city", "source"], rows, ["empty_rows"]
+
+
+def _export(rng):
+    rows = [[str(i), rng.choice(FIRST), str(rng.randint(0, 100)), str(rng.randint(0, 100))]
+            for i in range(ROWS)]
+    # A pandas index saved as a column, and two columns with the same name.
+    return ["Unnamed: 0", "name", "score", "score"], rows, ["header_unnamed", "header_duplicate:score"]
+
+
 FILES = {
     "clean_customers.csv": _clean_customers,
+    "contacts.csv": _contacts,
     "events.csv": _events,
+    "export.csv": _export,
     "inventory.csv": _inventory,
     "orders.csv": _orders,
     "payments.csv": _payments,
     "products.csv": _products,
+    "signups.csv": _signups,
+    "staff.csv": _staff,
     "survey.csv": _survey,
 }
 

@@ -17,15 +17,16 @@ def run(args, now=NOW):
     return main([str(a) for a in args], now=now)
 
 
-def test_clean_file_writes_json_and_html(tmp_path, capsys):
+def test_clean_file_writes_json(tmp_path, capsys):
     f = write(tmp_path)
     out = tmp_path / "out"
     assert run(["audit", f, "--out", out]) == 0
     assert (out / f"{STEM}.json").is_file()
-    assert (out / f"{STEM}.html").is_file()
     text = capsys.readouterr().out
     assert str(f) in text
-    assert f"{STEM}.json" in text and f"{STEM}.html" in text
+    assert f"{STEM}.json" in text
+    assert f"{f}: 5 rows, 2 columns, quality 100/100" in text
+    assert not list(out.glob("*.html"))
 
 
 def test_null_only_column_returns_1_and_summary_counts(tmp_path, capsys):
@@ -34,6 +35,7 @@ def test_null_only_column_returns_1_and_summary_counts(tmp_path, capsys):
     text = capsys.readouterr().out
     assert "error" in text and "missing" in text and "empty" in text
     assert "3 rows" in text and "2 columns" in text
+    assert "quality 80/100" in text
     assert "error: 1" in text
 
 
@@ -65,23 +67,12 @@ def test_second_run_same_now_returns_2_and_keeps_outputs(tmp_path, capsys):
     f = write(tmp_path)
     out = tmp_path / "out"
     assert run(["audit", f, "--out", out]) == 0
-    j, h = out / f"{STEM}.json", out / f"{STEM}.html"
-    before = (j.read_bytes(), h.read_bytes())
+    j = out / f"{STEM}.json"
+    before = j.read_bytes()
     capsys.readouterr()
     assert run(["audit", f, "--out", out]) == 2
     assert "already exists" in capsys.readouterr().err
-    assert (j.read_bytes(), h.read_bytes()) == before
-
-
-def test_existing_html_only_blocks_run_and_no_json_written(tmp_path, capsys):
-    f = write(tmp_path)
-    out = tmp_path / "out"
-    out.mkdir()
-    h = out / f"{STEM}.html"
-    h.write_bytes(b"keep")
-    assert run(["audit", f, "--out", out]) == 2
-    assert not (out / f"{STEM}.json").exists()
-    assert h.read_bytes() == b"keep"
+    assert j.read_bytes() == before
 
 
 def test_input_bytes_unchanged(tmp_path):
@@ -122,62 +113,16 @@ def test_help_returns_0(capsys):
     assert main(["--help"], now=NOW) == 0
 
 
-def test_html_starts_with_doctype_and_names_file(tmp_path):
-    f = write(tmp_path)
-    out = tmp_path / "out"
-    run(["audit", f, "--out", out])
-    html = (out / f"{STEM}.html").read_text(encoding="utf-8")
-    assert html.lstrip().lower().startswith("<!doctype html")
-    assert "data.csv" in html
-
-
 def test_non_ascii_column_names(tmp_path):
     f = write(tmp_path, text="naïve,日本\n1,2\n3,4\n")
     out = tmp_path / "out"
     run(["audit", f, "--out", out])
-    html = (out / f"{STEM}.html").read_bytes().decode("utf-8")
-    assert "naïve" in html and "日本" in html
+    text = (out / f"{STEM}.json").read_bytes().decode("utf-8")
+    assert "naïve" in text and "日本" in text
 
 
-def test_render_failure_returns_2_and_writes_nothing(tmp_path, capsys, monkeypatch):
-    def boom(reports, now):
-        raise RuntimeError("template broken")
-
-    monkeypatch.setattr("dataauditor.cli.render_html", boom)
-    f = write(tmp_path)
-    out = tmp_path / "out"
-    assert run(["audit", f, "--out", out]) == 2
-    assert not out.exists()
-    err = capsys.readouterr().err
-    assert "template broken" in err
-
-
-def test_html_write_failure_names_kept_json(tmp_path, capsys):
-    f = write(tmp_path)
-    out = tmp_path / "out"
-    out.mkdir()
-    # Only the html path is blocked (a directory there would be caught by the pre-check),
-    # so make the pre-check pass and fail the write by monkeypatching the helper.
-    import dataauditor.cli as cli
-
-    def fail(path, text):
-        raise OSError("disk full")
-
-    orig = cli._write_html
-    cli._write_html = fail
-    try:
-        assert run(["audit", f, "--out", out]) == 2
-    finally:
-        cli._write_html = orig
-    err = capsys.readouterr().err
-    assert "disk full" in err
-    assert f"{STEM}.json" in err and "kept" in err
-    assert (out / f"{STEM}.json").is_file()
-
-
-def test_naive_now_gives_same_stem_for_json_and_html(tmp_path):
+def test_naive_now_still_names_the_json(tmp_path):
     f = write(tmp_path)
     out = tmp_path / "out"
     assert run(["audit", f, "--out", out], now=datetime(2026, 11, 2, 9, 30, 5)) == 0
-    stems = sorted(p.stem for p in out.iterdir())
-    assert len(stems) == 2 and stems[0] == stems[1]
+    assert [p.name for p in out.iterdir()] == [f"{STEM}.json"]

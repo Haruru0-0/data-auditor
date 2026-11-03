@@ -27,8 +27,17 @@ def test_to_json_round_trip():
     assert data["totals"] == {"info": 0, "warning": 2, "error": 1}
     f = data["files"][0]
     assert (f["path"], f["rows"], f["columns"]) == ("a.csv", 3, {"x": "BIGINT"})
+    assert f["score"] == 100 - 20 - 7 - 7
+    assert f["profile"] == {}
     assert f["findings"][0] == {"check": "missing", "severity": "error", "column": "x",
                                 "message": "msg", "count": 1, "examples": ["e"]}
+
+
+def test_to_json_includes_profile():
+    r = FileReport("a.csv", 3, {"x": "BIGINT"}, [], {"x": {"type": "BIGINT", "missing": 0, "distinct": 3}})
+    f = json.loads(to_json([r], NOW))["files"][0]
+    assert f["score"] == 100
+    assert f["profile"]["x"]["distinct"] == 3
 
 
 def test_to_json_naive_treated_as_utc_and_sorted():

@@ -1,6 +1,6 @@
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import App from "./App";
+import AuditReport from "./AuditReport";
 import type { AuditData } from "./types";
 
 // Normal (not reduced) motion: matchMedia exists but never matches.
@@ -26,7 +26,7 @@ const data: AuditData = {
 
 describe("normal motion", () => {
   it("count-up starts below the total and entrance elements are offset", async () => {
-    const { container } = render(<App data={data} />);
+    const { container } = render(<AuditReport data={data} />);
     const totals = screen.getByTestId("totals");
     expect(totals).toHaveTextContent("✖ error 0");
     const moved = Array.from(container.querySelectorAll<HTMLElement>("[style]")).filter((e) =>

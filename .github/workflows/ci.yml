@@ -27,13 +27,9 @@ jobs:
           node-version: 26
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Test and build the report page
+      - name: Test and build the web app
         working-directory: web
         run: |
           npm ci
           npm test
           npm run build
-      # The build is byte-identical across two local runs. Line endings are ignored
-      # so a checkout with different newline settings cannot cause a false failure.
-      - name: Committed report page matches a fresh build
-        run: git diff --exit-code --ignore-cr-at-eol src/dataauditor/static/report.html

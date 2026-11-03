@@ -60,3 +60,43 @@ def test_path_with_quote_and_space_and_unique_names(con, tmp_path):
     second = open_table(con, path)
     assert first.name != second.name
     assert second.rows == 1
+
+
+def test_late_format_change_does_not_break_the_file(con, csv):
+    # DuckDB sniffs types from the first rows by default; a date column whose
+    # format changes after that sample must load as text, not fail later.
+    rows = ["id,d"] + [f"{i},2024-01-{i % 28 + 1:02d}" for i in range(25000)]
+    rows += ["25000,05/01/2024", "25001,2024-02-10"]
+    table = open_table(con, csv("late.csv", "\n".join(rows) + "\n"))
+    assert table.columns["d"] == "VARCHAR"
+    assert con.execute(f'SELECT count(d) FROM "{table.name}"').fetchone()[0] == 25002
+
+
+@pytest.mark.parametrize("other", ["05/01/2024", "05.01.2024", "05-01-2024"])
+def test_mixed_date_formats_load_as_text_and_keep_other_types(con, csv, other):
+    rows = ["id,d"] + [f"{i},2024-01-{i % 28 + 1:02d}" for i in range(10)] + [f"10,{other}"]
+    table = open_table(con, csv("mixed.csv", "\n".join(rows) + "\n"))
+    assert table.columns["d"] == "VARCHAR"
+    assert table.columns["id"] == "BIGINT"
+    assert con.execute(f'SELECT count(d) FROM "{table.name}"').fetchone()[0] == 11
+
+
+def test_columns_named_t_d_e_with_late_failures_load_as_text(con, csv):
+    # A column called "t" must not break loading, and d and e (ISO dates until
+    # the last row) fall back to text while t stays numeric.
+    rows = ["t,d,e"] + [f"{i},2024-01-{i % 28 + 1:02d},2024-02-{i % 28 + 1:02d}" for i in range(49)]
+    rows.append("50,01/02/2024,01/03/2024")
+    table = open_table(con, csv("tde.csv", "\n".join(rows) + "\n"))
+    assert table.columns == {"t": "BIGINT", "d": "VARCHAR", "e": "VARCHAR"}
+    assert table.rows == 50
+
+
+def test_csv_is_materialized_but_parquet_stays_a_view(con, csv, tmp_path):
+    t = open_table(con, csv("a.csv", "a\n1\n"))
+    kinds = dict(con.execute("SELECT table_name, table_type FROM information_schema.tables").fetchall())
+    assert kinds[t.name] == "LOCAL TEMPORARY"
+    path = tmp_path / "p.parquet"
+    con.execute(f"COPY (SELECT 1 AS x) TO '{path.as_posix()}' (FORMAT parquet)")
+    p = open_table(con, path)
+    kinds = dict(con.execute("SELECT table_name, table_type FROM information_schema.tables").fetchall())
+    assert kinds[p.name] == "VIEW"

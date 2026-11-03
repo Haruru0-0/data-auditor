@@ -9,13 +9,15 @@ Command-line tool that scans CSV and Parquet files and reports data-quality prob
 - Commits are made as Ahmad: no `Co-Authored-By` and no "Generated with Claude" lines. Never push without his explicit yes.
 - README numbers come from generated results, never typed by hand.
 - Saved reports are never overwritten; each run writes a new timestamped file.
-- Report page: React + Vite (`web/`), built to one self-contained file at `src/dataauditor/static/report.html` (committed, so CLI users need no Node). Audit JSON is embedded. System fonts only, no external requests (no external scripts, fonts or `url(`). Never use `dangerouslySetInnerHTML`. UI uses shadcn/ui (Tailwind) components and Framer Motion for animation, with `prefers-reduced-motion` respected; shadcn MCP is configured in `.mcp.json`.
+- Web app (standard Vite react-ts layout in `web/`: `src/App.tsx` is the upload page, `src/AuditReport.tsx` the results view): upload a CSV/Parquet file to the FastAPI backend (`src/dataauditor/server.py`, max 50 MB, temp file deleted, original name only reported).
+- Web UI: React + Vite (`web/`) with shadcn/ui (Tailwind) components and Framer Motion for animation, `prefers-reduced-motion` respected; never use `dangerouslySetInnerHTML`; shadcn MCP is configured in `.mcp.json`.
 
 ## Commands
 
 - Install: `python -m venv .venv`, then `.venv/Scripts/python.exe -m pip install -e ".[dev]"`
 - Test: `.venv/Scripts/python.exe -m pytest -q`
-- Web: in `web/`, `npm ci`, `npm test`, `npm run build`
+- Web: in `web/`, `npm ci`, `npm test`, `npm run build` (typechecks, then builds `web/dist`), `npm run lint`, `npm run dev` (hot reload; needs the API running)
+- Web app: `uvicorn dataauditor.server:app --port 8000` serves `/api/audit` and `web/dist`
 
 ## Memory / Code map
 

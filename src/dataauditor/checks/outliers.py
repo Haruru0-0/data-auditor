@@ -1,7 +1,6 @@
-import re
-
 import duckdb
 
+from dataauditor.checks._names import is_numeric_type
 from dataauditor.findings import Finding
 from dataauditor.load import Table, quote_ident
 
@@ -9,15 +8,6 @@ MIN_VALUES = 20
 Z_LIMIT = 6
 Z_SCALE = 0.6745
 MAX_EXAMPLES = 3
-
-_NUMERIC = re.compile(
-    r"^(U?(TINY|SMALL|BIG|HUGE)?INT(EGER)?|FLOAT|DOUBLE|REAL|DECIMAL(\(.*\))?)$"
-)
-
-
-def _is_numeric(col_type: str) -> bool:
-    return bool(_NUMERIC.match(col_type.upper()))
-
 
 def _fmt(value: float) -> str:
     return str(int(value)) if value.is_integer() else str(value)
@@ -29,7 +19,7 @@ def check_outliers(con: duckdb.DuckDBPyConnection, table: Table) -> list[Finding
     view = quote_ident(table.name)
     findings = []
     for name, col_type in table.columns.items():
-        if not _is_numeric(col_type):
+        if not is_numeric_type(col_type):
             continue
         col = quote_ident(name)
         base = (

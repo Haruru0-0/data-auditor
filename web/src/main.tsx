@@ -1,9 +1,10 @@
-import { createRoot } from "react-dom/client";
-import App, { parseAuditData } from "./App";
-import "./styles.css";
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.tsx'
 
-const data = parseAuditData(document.getElementById("audit-data")?.textContent);
-const root = document.getElementById("root");
-if (root) {
-  createRoot(root).render(<App data={data} />);
-}
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
