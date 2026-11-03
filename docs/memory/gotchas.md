@@ -1,6 +1,6 @@
 # Gotchas
 
-- The mirror script in jalter needs a GitHub repo with an `origin` remote and a GitLab token; it commits and pushes, so it only runs after Ahmad says yes to pushing.
+- The mirror script (in the dev-tools repo) needs a GitHub repo with an `origin` remote and a GitLab token; it commits and pushes the workflow, so it only runs after Ahmad says yes. It already ran for this repo; do not rerun it, since it overwrites the workflow file.
 - `DRY_RUN=1 bash ../dev-tools/mirror-to-gitlab.sh data-auditor` is safe and changes nothing.
 - In forecast-tracker, use the repo's `.venv` Python, not the system one. This repo has `.venv`; run tests with `.venv/Scripts/python.exe -m pytest -q` (system Python has no pytest).
 - Key-like column detection in `check_duplicates` is name-based and token-based: `id`, `key`, `user_id`, `order-key`, `userId`, `APIKey` count; `paid`, `valid`, `grid`, `bid`, `identity` do not. Names with no separator or case boundary (`userid`, `USERID`, `ORDERKEY`) are not flagged, so a real key column named that way is missed.

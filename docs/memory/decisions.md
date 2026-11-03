@@ -4,7 +4,7 @@ Made by Ahmad:
 - Project 4 is a data-quality auditor, built after forecast-tracker.
 - First version targets normal-sized data, in a new folder and a new repo.
 - Auditor first; cleaning is a possible later addition.
-- Mirror the GitHub repo to GitLab the way jalter does (`dev-tools/mirror-to-gitlab.sh`).
+- Mirror the GitHub repo to a private GitLab copy with `dev-tools/mirror-to-gitlab.sh`. Done 2026-11-03: the workflow (`6d3e208`) mirrors every push and nightly, and the first run succeeded.
 
 - Stay on Python for everything (audit now, cleaning later); Rust was considered and dropped for v1 (decided 2026-11-02).
 - The report page is React + Vite, replacing the pure-Python page (2026-11-02). Ruled by Claude on how: single-file build committed at `src/dataauditor/static/report.html` so CLI users need no Node; audit JSON embedded in a script block; no external requests. Costs: the page needs JavaScript, and CI needs Node. Superseded: Ahmad then asked to leave only the web page, so the single-file report page and its build were removed (2026-11-03); the CLI now writes terminal output and JSON only.
